@@ -1,0 +1,184 @@
+import numpy as np
+import sympy as sy
+
+x = sy.Symbol("x", real=True)
+
+matboard_tensile_strength = 30  # MPa
+matboard_compressive_strength = 6  # MPa
+matboard_shear_strength = 4  # MPa
+matboard_youngs_modulus = 4000  # MPa
+matboard_poissons_ratio = 0.2
+cement_shear_strength = 2  # MPa
+bridge_length = 1200
+
+### Add functions to calculate values here ###
+
+
+def centroidal_axis(components):
+    sum1 = sum2 = 0
+    for component in components:
+        component_area = component[1] * component[2]
+        sum1 += component[0] * component_area
+        sum2 += component_area
+    return sum1 / sum2
+
+
+def second_moment_area(components):
+    sum1 = 0
+    axis = centroidal_axis(components)
+    for component in components:
+        sum1 += (component[1] * component[2] ** 3) / 12 + component[1] * component[
+            2
+        ] * (axis - component[0]) ** 2
+    return sum1
+
+
+def flexural_stress(components, bending_moments):
+    highest_bending_moment = max(bending_moments)
+    moment_area = second_moment_area(components)
+    lowest = centroidal_axis(components)
+    highest = max([n[0] + n[2] / 2 for n in components])
+    compression = highest * highest_bending_moment / moment_area * 1e3
+    tension = lowest * highest_bending_moment / moment_area * 1e3
+    return compression, tension
+
+
+# def shear_force_data(loads):
+#     total_force = sum([n[1] * (bridge_length - n[0]) for n in loads]) / bridge_length
+#     shear_forces = [total_force]
+#     lengths = [0]
+#     for load in loads:
+#         lengths.append(load[0])
+#         shear_forces.append(total_force)
+#         total_force -= load[1]
+#         lengths.append(load[0])
+#         shear_forces.append(total_force)
+#     lengths.append(bridge_length)
+#     shear_forces.append(total_force)
+#     lengths = [n / 1000 for n in lengths]
+#     return lengths, shear_forces  # (m, N)
+
+
+def calc_reaction_forces(loads):
+    """
+    Calculates reaction forces and appends it to the reaction force array within loads. Works only with point loads and distributed loads.
+
+    Args:
+        loads: list
+        A list containing all external forces applied to the member.
+    """
+
+    # Separate the different types of forces
+    point_loads = [load for load in loads if load[0] == "point"]
+    distributed_loads = [load for load in loads if load[0] == "distributed"]
+    reaction_forces = [load for load in loads if load[0] == "reaction"]
+
+    if len(reaction_forces) != 2:
+        print("Invalid Reaction Forces.")
+
+    # Loop twice to calculate each reaction force.
+    for j in range(2):
+        reaction_length = reaction_forces[j % 2][1]
+        pivot_length = reaction_forces[(j + 1) % 2][1]
+
+        # Sum up the moments of the point loads.
+        point_sum = sum([(load[2] * (load[1] - pivot_length)) for load in point_loads])
+
+        # Sum up moments of the distributed loads
+        distributed_sum = 0
+        for i in range(0, len(distributed_loads) - 1):
+            length = distributed_loads[i + 1][1] - distributed_loads[i][1]
+            radius = (
+                distributed_loads[i][1] + distributed_loads[i + 1][1]
+            ) / 2 - pivot_length
+            distributed_sum += length * radius * distributed_loads[i][2]
+
+        # Divide sum of moments by distance to get reaction force.
+        reaction_forces[j % 2].append(
+            -(distributed_sum + point_sum) / (reaction_length - pivot_length)
+        )
+
+
+def merge_forces(loads):
+    """
+    Converts the provided loads, and solves for the coefficients for the shear force piecewise equation.
+
+    Args:
+        loads: list
+        A list containing all external forces applied to the member with solved reaction forces.
+
+    Returns:
+        list: Values for [length, starting force, slope] at each point where the applied force changes.
+    """
+
+    current_distributed_force = 0
+    point_force_sum = 0
+    merged_loads = []
+
+    # Sum up point forces, determine the value of distributed force at each point, and combine forces which are applied at the same point.
+    for i in range(0, len(loads)):
+        if loads[i][0] == "point" or loads[i][0] == "reaction":
+            point_force_sum -= loads[i][2]
+
+        elif loads[i][0] == "distributed":
+            current_distributed_force = loads[i][2]
+
+        if i == len(loads) - 1 or loads[i][1] != loads[i + 1][1]:
+            merged_loads.append(
+                [loads[i][1], point_force_sum, current_distributed_force]
+            )
+
+    previous_length = None
+    distributed_force_sum = 0
+
+    # Add distributed force sum to point force sum to get the starting value.
+    for load in merged_loads:
+        if previous_length != None:
+            distributed_force_sum += load[2] * (load[0] - previous_length)
+
+            load[1] -= distributed_force_sum
+
+        previous_length = load[0]
+
+    return merged_loads
+
+
+def get_shear_force_func(loads):
+    """
+    Creates a function for shear force.
+
+    Args:
+        loads: list
+        A list containing all external forces applied to the member.
+
+    Returns:
+        sympy.Piecewise: A piecewise function representing shear force.
+    """
+
+    calc_reaction_forces(loads)
+
+    loads = merge_forces(loads)
+
+    shear_forces = []
+
+    for load in loads:
+        shear_forces.append((load[1] - (x - load[0]) * load[2], load[0] < x))
+
+    shear_forces = shear_forces[::-1]
+
+    # Define all other values
+    shear_forces.append((0, True))
+
+    return sy.Piecewise(*shear_forces)
+
+
+# def bending_moment_data(loads):
+#     lengths, shear_forces = shear_force_data(loads)
+#     lengths2 = [0]
+#     bending_moments = [0]
+#     sum1 = 0
+#     for i in range(0, len(lengths), 2):
+#         sum1 += (lengths[i + 1] - lengths[i]) * (shear_forces[i])
+#         lengths2.append(lengths[i + 1])
+#         bending_moments.append(sum1)
+#     return lengths2, bending_moments  # (m, Nm)
