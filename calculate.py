@@ -23,24 +23,34 @@ def centroidal_axis(components):
     return sum1 / sum2
 
 
-def second_moment_area(components):
+def second_moment_area(components, axis):
     sum1 = 0
-    axis = centroidal_axis(components)
-    for component in components:
-        sum1 += (component[1] * component[2] ** 3) / 12 + component[1] * component[
-            2
-        ] * (axis - component[0]) ** 2
+    for c in components:
+        sum1 += (c[1] * c[2] ** 3) / 12 + c[1] * c[2] * (axis - c[0]) ** 2
     return sum1
 
 
-def flexural_stress(components, bending_moments):
-    highest_bending_moment = max(bending_moments)
-    moment_area = second_moment_area(components)
-    lowest = centroidal_axis(components)
-    highest = max([n[0] + n[2] / 2 for n in components])
-    compression = highest * highest_bending_moment / moment_area * 1e3
-    tension = lowest * highest_bending_moment / moment_area * 1e3
-    return compression, tension
+def highest_bending_moment(critical_lengths, bending_moment_expr):
+    """
+    Find the highest point in a bending moment function.
+
+    Args:
+        critical_lengths (list): a list containing all lengths to be checked.
+        bending_moment_expr (Any): The bending moment sympy expression.
+
+    Returns:
+        tuple: (length, highest_bending_moment)
+    """
+    critical_lengths = list(set(critical_lengths))
+    highest_moment = 0
+    highest_index = None
+    for i in range(len(critical_lengths)):
+        moment = bending_moment_expr.subs(x,critical_lengths[i])
+
+        if abs(moment) > highest_moment:
+            highest_moment = moment
+            highest_index = i
+    return critical_lengths[highest_index], highest_moment
 
 
 # def shear_force_data(loads):
@@ -64,7 +74,7 @@ def calc_reaction_forces(loads):
     Calculates reaction forces and appends it to the reaction force array within loads. Works only with point loads and distributed loads.
 
     Args:
-        loads: list
+        loads: (list)
         A list containing all external forces applied to the member.
     """
 
@@ -104,7 +114,7 @@ def merge_forces(loads):
     Converts the provided loads, and solves for the coefficients for the shear force piecewise equation.
 
     Args:
-        loads: list
+        loads: (list)
         A list containing all external forces applied to the member with solved reaction forces.
 
     Returns:
@@ -148,28 +158,34 @@ def get_shear_force_func(loads):
     Creates a function for shear force.
 
     Args:
-        loads: list
+        loads: (list)
         A list containing all external forces applied to the member.
 
     Returns:
         sympy.Piecewise: A piecewise function representing shear force.
+        list: A list containing critical values of the function.
     """
 
     calc_reaction_forces(loads)
 
     loads = merge_forces(loads)
 
+    critical_lengths = [load[0] for load in loads]
+
     shear_forces = []
 
     for load in loads:
         shear_forces.append((load[1] - (x - load[0]) * load[2], load[0] < x))
+
+        if load[2] != 0:
+            critical_lengths.append(load[1] / load[2] + load[0])
 
     shear_forces = shear_forces[::-1]
 
     # Define all other values
     shear_forces.append((0, True))
 
-    return sy.Piecewise(*shear_forces)
+    return sy.Piecewise(*shear_forces), critical_lengths
 
 
 # def bending_moment_data(loads):
