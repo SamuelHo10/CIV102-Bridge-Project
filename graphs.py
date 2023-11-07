@@ -14,7 +14,7 @@ def plot_piecewise(f):
     plt.plot( f, (x, 0,16))
 
 
-def line_graph(x_axis, y_axis, x_axis_label="x", y_axis_label="y", invert_y=False, save_path="graph.png"):
+def line_graph(y_axis, x_axis_label="x", y_axis_label="y", invert_y=False, save_path="graph.png"):
     plt.plot(x_axis, y_axis)
     plt.xlabel(x_axis_label)
     plt.ylabel(y_axis_label)
