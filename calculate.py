@@ -9,12 +9,36 @@ matboard_shear_strength = 4  # MPa
 matboard_youngs_modulus = 4000  # MPa
 matboard_poissons_ratio = 0.2
 cement_shear_strength = 2  # MPa
-bridge_length = 1200
+bridge_length = 1200  # mm
+matboard_density = 625 / 826008 * 1e3 * 9.81  # kN / m^3
 
 ### Add functions to calculate values here ###
 
 
+def area(components):
+    """Calculates the cross-sectional area of the components.
+
+    Args:
+        components (list): Contains rectangles with postion, width, and height.
+
+    Returns:
+        float: The area.
+    """
+    sum1 = 0
+    for component in components:
+        sum1 += component[2] * component[2]
+    return sum1
+
+
 def centroidal_axis(components):
+    """Calculates the location of the centroidal axis relative to the lowest point.
+
+    Args:
+        components (list): Contains rectangles with postion, width, and height.
+
+    Returns:
+        float: The location of the centroidal axis.
+    """
     sum1 = sum2 = 0
     for component in components:
         component_area = component[1] * component[2]
@@ -24,6 +48,15 @@ def centroidal_axis(components):
 
 
 def second_moment_area(components, axis):
+    """Calculates the second moment of area of all the components.
+
+    Args:
+        components (list): Contains rectangles with postion, width, and height.
+        axis (float): Location of the centroidal axis relative to the lowest point.
+
+    Returns:
+        float: The second moment of area.
+    """
     sum1 = 0
     for c in components:
         sum1 += (c[1] * c[2] ** 3) / 12 + c[1] * c[2] * (axis - c[0]) ** 2
@@ -45,28 +78,12 @@ def highest_bending_moment(critical_lengths, bending_moment_expr):
     highest_moment = 0
     highest_index = None
     for i in range(len(critical_lengths)):
-        moment = bending_moment_expr.subs(x,critical_lengths[i])
+        moment = bending_moment_expr.subs(x, critical_lengths[i])
 
         if abs(moment) > highest_moment:
             highest_moment = moment
             highest_index = i
     return critical_lengths[highest_index], highest_moment
-
-
-# def shear_force_data(loads):
-#     total_force = sum([n[1] * (bridge_length - n[0]) for n in loads]) / bridge_length
-#     shear_forces = [total_force]
-#     lengths = [0]
-#     for load in loads:
-#         lengths.append(load[0])
-#         shear_forces.append(total_force)
-#         total_force -= load[1]
-#         lengths.append(load[0])
-#         shear_forces.append(total_force)
-#     lengths.append(bridge_length)
-#     shear_forces.append(total_force)
-#     lengths = [n / 1000 for n in lengths]
-#     return lengths, shear_forces  # (m, N)
 
 
 def calc_reaction_forces(loads):
@@ -186,15 +203,3 @@ def get_shear_force_func(loads):
     shear_forces.append((0, True))
 
     return sy.Piecewise(*shear_forces), critical_lengths
-
-
-# def bending_moment_data(loads):
-#     lengths, shear_forces = shear_force_data(loads)
-#     lengths2 = [0]
-#     bending_moments = [0]
-#     sum1 = 0
-#     for i in range(0, len(lengths), 2):
-#         sum1 += (lengths[i + 1] - lengths[i]) * (shear_forces[i])
-#         lengths2.append(lengths[i + 1])
-#         bending_moments.append(sum1)
-#     return lengths2, bending_moments  # (m, Nm)
