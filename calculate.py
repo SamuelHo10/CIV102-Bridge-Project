@@ -203,3 +203,64 @@ def get_shear_force_func(loads):
     shear_forces.append((0, True))
 
     return sy.Piecewise(*shear_forces), critical_lengths
+
+
+class Node:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.nodes = []
+    
+    def __repr__(self):
+        return f"[{self.x},{self.y}]"
+
+
+class Member:
+    def __init__(self, n1, n2):
+        self.nodes = (n1, n2)
+
+
+def connect_nodes(a, b):
+    member = Member(a, b)
+    a.nodes.append(member)
+    b.nodes.append(member)
+
+
+def generate_standard_truss(num_horizontal_nodes, height, length):
+    top_nodes = []
+    bottom_nodes = []
+    nodes = []
+
+    for n in range(num_horizontal_nodes):
+        node = Node(length / (num_horizontal_nodes - 1) * n, 0)
+        bottom_nodes.append(node)
+        nodes.append(node)
+
+    for n in range(1, num_horizontal_nodes - 1):
+        node = Node(length / (num_horizontal_nodes - 1) * n, height)
+        top_nodes.append(node)
+        nodes.append(node)
+
+    return nodes, top_nodes, bottom_nodes
+
+
+def connect_nodes_pratt(top_nodes, bottom_nodes):
+    length_top = len(top_nodes)
+    length_bottom = len(bottom_nodes)
+
+    # Connect top nodes
+    for i in range(length_top - 1):
+        connect_nodes(top_nodes[i], top_nodes[i + 1])
+
+    # Connect bottom nodes
+    for i in range(length_bottom - 1):
+        connect_nodes(bottom_nodes[i], bottom_nodes[i + 1])
+
+    for i in range(length_top):
+        connect_nodes(top_nodes[i], bottom_nodes[i + 1])
+
+    for i in range((length_top + 1) / 2):
+        connect_nodes(bottom_nodes[i], top_nodes[i])
+        connect_nodes(
+            bottom_nodes[length_bottom - 1 - i], top_nodes[length_top - 1 - i]
+        )
