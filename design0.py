@@ -1,8 +1,6 @@
 import calculate
 import graphs
-import sympy.plotting as plt
 import sympy as sy
-import scipy
 
 # [distance from base, width, height]
 rectangles = [
@@ -15,9 +13,8 @@ rectangles = [
 ]
 
 
-
-# ['point' ,length (m), force (kN)]
-# ['distributed' , length (m), uniform load (kNm)]
+# ['point' ,length (m), force (N)]
+# ['distributed' , length (m), uniform load (Nm)]
 # ['reaction' , length (m)]
 loads = [
     ["reaction", 0],
@@ -34,11 +31,30 @@ loads = [
 
 shear_force_expr, critical_lengths = calculate.get_shear_force_func(loads)
 
-plt.plot(shear_force_expr, (calculate.x, 0, 1.2))
+graphs.plot_sympy(
+    shear_force_expr,
+    calculate.x,
+    (0, 1.2),
+    x_axis_label="Length (m)",
+    y_axis_label="Shear Force (N)",
+    fill=True,
+    save_path="img\\design0_SFD.png",
+    show=False,
+)
 
 bending_moment_expr = sy.integrate(shear_force_expr)
 
-plt.plot(bending_moment_expr, (calculate.x, 0, 1.2))
+graphs.plot_sympy(
+    bending_moment_expr,
+    calculate.x,
+    (0, 1.2),
+    x_axis_label="Length (m)",
+    y_axis_label="Bending Moment (Nm)",
+    fill=True,
+    save_path="img\\design0_BMD.png",
+    invert_y=True,
+    show=False,
+)
 
 max_x, max_y = calculate.highest_bending_moment(critical_lengths, bending_moment_expr)
 
@@ -47,10 +63,17 @@ axis = calculate.centroidal_axis(rectangles)
 second_moment_area = calculate.second_moment_area(rectangles, axis)
 
 bounds = [axis, max([r[0] + r[2] / 2 for r in rectangles]) - axis]
-print(loads)
-print(axis)
-print(bounds, max_y, second_moment_area)
 
-stresses = [b * max_y / second_moment_area *1e3 for b in bounds]
-print( calculate.matboard_tensile_strength / stresses[0])
-print(  calculate.matboard_compressive_strength / stresses[1])
+stresses = [b * max_y / second_moment_area * 1e3 for b in bounds]
+
+print("Loads:")
+for load in loads:
+    print(load)
+print(f"Centroidal Axis: {axis}")
+print(f"Second Moment of Area: {second_moment_area}")
+print(f"Bounds: {bounds}")
+print(f"Maximum Bending Moment: {max_y}")
+print(f"Tension Safety Factor: {calculate.matboard_tensile_strength / stresses[0]}")
+print(
+    f"Compression Safety Factor: {calculate.matboard_compressive_strength / stresses[1]}"
+)
