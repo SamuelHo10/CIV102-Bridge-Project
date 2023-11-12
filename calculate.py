@@ -209,21 +209,27 @@ class Node:
     def __init__(self, x, y):
         self.x = x
         self.y = y
-        self.nodes = []
-    
+        self.members = []
+        self.force = (0, 0)
+
     def __repr__(self):
         return f"[{self.x},{self.y}]"
 
 
 class Member:
-    def __init__(self, n1, n2):
+    def __init__(self, n1, n2, id):
         self.nodes = (n1, n2)
+        self.id = id
+    
+    def __repr__(self):
+        return str(self.force)
 
 
-def connect_nodes(a, b):
-    member = Member(a, b)
-    a.nodes.append(member)
-    b.nodes.append(member)
+def connect_nodes(a, b, id):
+    member = Member(a, b, id)
+    a.members.append((member, b))
+    b.members.append((member, a))
+    return member
 
 
 def generate_standard_truss(num_horizontal_nodes, height, length):
@@ -245,22 +251,51 @@ def generate_standard_truss(num_horizontal_nodes, height, length):
 
 
 def connect_nodes_pratt(top_nodes, bottom_nodes):
+    id = 0
     length_top = len(top_nodes)
     length_bottom = len(bottom_nodes)
+    node_pairs = []
+    members = []
 
-    # Connect top nodes
-    for i in range(length_top - 1):
-        connect_nodes(top_nodes[i], top_nodes[i + 1])
+    node_pairs.extend([(top_nodes[i], top_nodes[i + 1]) for i in range(length_top - 1)])
 
-    # Connect bottom nodes
-    for i in range(length_bottom - 1):
-        connect_nodes(bottom_nodes[i], bottom_nodes[i + 1])
+    node_pairs.extend(
+        [(bottom_nodes[i], bottom_nodes[i + 1]) for i in range(length_bottom - 1)]
+    )
 
-    for i in range(length_top):
-        connect_nodes(top_nodes[i], bottom_nodes[i + 1])
+    node_pairs.extend([(top_nodes[i], bottom_nodes[i + 1]) for i in range(length_top)])
 
-    for i in range((length_top + 1) / 2):
-        connect_nodes(bottom_nodes[i], top_nodes[i])
-        connect_nodes(
-            bottom_nodes[length_bottom - 1 - i], top_nodes[length_top - 1 - i]
+    for i in range((length_top + 1) // 2):
+        node_pairs.append((bottom_nodes[i], top_nodes[i]))
+        node_pairs.append(
+            (bottom_nodes[length_bottom - 1 - i], top_nodes[length_top - 1 - i])
         )
+
+    for node_pair in node_pairs:
+        members.append(connect_nodes(node_pair[0], node_pair[1], id))
+        id += 1
+
+    return members
+
+
+def solve_truss(nodes, members):
+    num_members = len(members)
+    A = []
+    B = []
+    for i in range(len(nodes)):
+        row_x = [0] * num_members
+        row_y = [0] * num_members
+        node = nodes[i]
+        for f in node.members:
+            member = f[0]
+            other_node = f[1]
+            angle = np.arctan2(other_node.y - node.y, other_node.x - node.x)
+            row_x[member.id] = np.cos(angle)
+            row_y[member.id] = np.sin(angle)
+        A.extend([row_x, row_y])
+        B.extend([-node.force[0], -node.force[1]])
+
+    member_forces = np.linalg.lstsq(A, B)[0]
+
+    for i in range(num_members):
+        members[i].force = member_forces[i]
