@@ -18,14 +18,14 @@ rectangles = [
 # ['reaction' , length (m)]
 loads = [
     ["reaction", 0],
-    ["distributed", 0, calculate.area(rectangles) / 1e6 * calculate.matboard_density],
+    # ["distributed", 0, calculate.area(rectangles) / 1e6 * calculate.matboard_density],
     ["point", 0.172, 200 / 3],
     ["point", 0.348, 200 / 3],
     ["point", 0.512, 200 / 3],
     ["point", 0.688, 200 / 3],
     ["point", 0.852, 90],
     ["point", 1.028, 90],
-    ["distributed", 1.200, 0],
+    # ["distributed", 1.200, 0],
     ["reaction", 1.200],
 ]
 
@@ -56,7 +56,7 @@ graphs.plot_sympy(
     show=False,
 )
 
-max_x, max_y = calculate.highest_bending_moment(critical_lengths, bending_moment_expr)
+max_x, max_y = calculate.max_expression(critical_lengths, abs(bending_moment_expr))
 
 axis = calculate.centroidal_axis(rectangles)
 
