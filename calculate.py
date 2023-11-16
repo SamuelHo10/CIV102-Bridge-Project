@@ -294,8 +294,8 @@ def generate_envelop(start, stop, num, loads, spacing):
         )
 
 
-def thin_plate_stress(top_base):
-    return (4 * (numpy.pi ** 2) * matboard_youngs_modulus / (12 * ((1 - matboard_poissons_ratio) ** 2))) * (th / top_base) ** 2
+def thin_plate_stress(side_height):
+    return (4 * (numpy.pi ** 2) * matboard_youngs_modulus / (12 * ((1 - matboard_poissons_ratio) ** 2))) * (th / side_height) ** 2
 
 
 def thin_plate_shear(top_base, diaphragm_spacing):
