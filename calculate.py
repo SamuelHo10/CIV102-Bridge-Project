@@ -1,3 +1,4 @@
+import numpy
 import numpy as np
 import sympy as sy
 from copy import deepcopy
@@ -291,6 +292,14 @@ def generate_envelop(start, stop, num, loads, spacing):
             max_shear_force,
             max_bending_moment,
         )
+
+
+def thin_plate_stress(top_base):
+    return (4 * (numpy.pi ** 2) * matboard_youngs_modulus / (12 * ((1 - matboard_poissons_ratio) ** 2))) * (th / top_base) ** 2
+
+
+def thin_plate_shear(top_base, diaphragm_spacing):
+    return (5 * (numpy.pi ** 2) * matboard_youngs_modulus / (12 * ((1 - matboard_poissons_ratio) ** 2))) * ((th/diaphragm_spacing)**2 + (th/top_base)**2)
 
 
 ### CODE FOR TRUSS BRIDGES ###
