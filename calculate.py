@@ -1,5 +1,6 @@
 import numpy as np
 import sympy as sy
+from copy import deepcopy
 
 x = sy.Symbol("x", real=True)
 
@@ -11,8 +12,53 @@ matboard_poissons_ratio = 0.2
 cement_shear_strength = 2  # MPa
 bridge_length = 1200  # mm
 matboard_density = 625 / 826008 * 1e3 * 9.81  # kN / m^3
-
+th = 1.27  # mm
+glue_width = 10  # mm
 ### Add functions to calculate values here ###
+
+
+def generate_cross_section(top_flange_width, bottom_flange_width, web_height):
+    # (x, y, w ,h)
+    return [
+        (0, th / 2, bottom_flange_width, th),  # bottom flange
+        (
+            (bottom_flange_width  - th)/ 2,
+            th + web_height / 2,
+            th,
+            web_height,
+        ),  # right web
+        (
+            -bottom_flange_width / 2 + th / 2,
+            th + web_height / 2,
+            th,
+            web_height,
+        ),  # left web
+        (
+            (bottom_flange_width - th - glue_width) / 2,
+            th / 2 + web_height,
+            glue_width - th,
+            th,
+        ),  # glue top right
+        (
+            -web_spacing + glue_width / 2,
+            th / 2 + web_height,
+            glue_width - th,
+            th,
+        ),  # glue top left
+        (
+            web_spacing - glue_width / 2,
+            3 * th / 2,
+            glue_width - th,
+            th,
+        ),  # glue bottom right
+        (
+            -web_spacing + glue_width / 2,
+            3 * th / 2,
+            glue_width - th,
+            th,
+        ),  # glue bottom left
+        (0, 3 * th / 2 + web_height, top_flange_width, th),  # top flange
+    ]
 
 
 def area(components):
@@ -63,27 +109,27 @@ def second_moment_area(components, axis):
     return sum1
 
 
-def highest_bending_moment(critical_lengths, bending_moment_expr):
+def max_expression(critical_values, expr):
     """
-    Find the highest point in a bending moment function.
+    Find the highest point in a function given the critical values.
 
     Args:
-        critical_lengths (list): a list containing all lengths to be checked.
-        bending_moment_expr (Any): The bending moment sympy expression.
+        critical_values (list): a list containing all critical values to be checked.
+        expr (Any): a sympy expression.
 
     Returns:
-        tuple: (length, highest_bending_moment)
+        tuple: (value, max_value)
     """
-    critical_lengths = list(set(critical_lengths))
-    highest_moment = 0
-    highest_index = None
-    for i in range(len(critical_lengths)):
-        moment = bending_moment_expr.subs(x, critical_lengths[i])
+    critical_values = list(set(critical_values))
+    max_value = 0
+    max_index = None
+    for i in range(len(critical_values)):
+        moment = expr.subs(x, critical_values[i])
 
-        if abs(moment) > highest_moment:
-            highest_moment = moment
-            highest_index = i
-    return critical_lengths[highest_index], highest_moment
+        if moment > max_value:
+            max_value = moment
+            max_index = i
+    return critical_values[max_index], max_value
 
 
 def calc_reaction_forces(loads):
@@ -192,7 +238,8 @@ def get_shear_force_func(loads):
     shear_forces = []
 
     for load in loads:
-        shear_forces.append((load[1] - (x - load[0]) * load[2], load[0] < x))
+        # print(sy.Float(load[0]) < x)
+        shear_forces.append((load[1] - (x - load[0]) * load[2], sy.Float(load[0]) < x))
 
         if load[2] != 0:
             critical_lengths.append(load[1] / load[2] + load[0])
@@ -203,6 +250,50 @@ def get_shear_force_func(loads):
     shear_forces.append((0, True))
 
     return sy.Piecewise(*shear_forces), critical_lengths
+
+
+def generate_envelop(start, stop, num, loads, spacing):
+    load_positions = np.linspace(start, stop, num)
+    shear_force_envelop = []
+    bending_moment_envelop = []
+    max_shear_force = 0
+    max_bending_moment = 0
+    x_vals = np.linspace(0, bridge_length, spacing)
+
+    for load_position in load_positions:
+        # shift positions of loads
+        new_loads = deepcopy(loads)
+        for load in new_loads:
+            if load[0] == "point" or load[0] == "distributed":
+                load[1] += load_position
+        print(new_loads)
+        # calculate bending moment and shear force expressions
+        shear_force_expr, critical_lengths = get_shear_force_func(new_loads)
+        bending_moment_expr = sy.integrate(shear_force_expr)
+
+        shear_force_func = sy.lambdify(x, shear_force_expr)
+        bending_moment_func = sy.lambdify(x, bending_moment_expr)
+
+        shear_force_envelop.append(shear_force_func(x_vals))
+        bending_moment_envelop.append(bending_moment_func(x_vals))
+
+        max_shear_force = max(
+            max_expression(critical_lengths, shear_force_expr)[1], max_shear_force
+        )
+        max_bending_moment = max(
+            max_expression(critical_lengths, bending_moment_expr)[1], max_bending_moment
+        )
+
+        return (
+            x_vals,
+            shear_force_envelop,
+            bending_moment_envelop,
+            max_shear_force,
+            max_bending_moment,
+        )
+
+
+### CODE FOR TRUSS BRIDGES ###
 
 
 class Node:
@@ -220,7 +311,7 @@ class Member:
     def __init__(self, n1, n2, id):
         self.nodes = (n1, n2)
         self.id = id
-    
+
     def __repr__(self):
         return str(self.force)
 
