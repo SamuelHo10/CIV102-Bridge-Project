@@ -87,8 +87,12 @@ def plot_sympy(
     fill=False,
     show=True,
 ):
-    x_axis = np.linspace(interval[0], interval[1], spacing)
-    y_axis = sy.lambdify(symbol, sympy_expr)(x_axis)
+    if type(sympy_expr) == np.ndarray:
+        y_axis = sympy_expr
+        x_axis = symbol
+    else:
+        x_axis = np.linspace(interval[0], interval[1], spacing)
+        y_axis = sy.lambdify(symbol, sympy_expr)(x_axis)
     (line,) = plt.plot(x_axis, y_axis)
     plt.xlabel(x_axis_label)
     plt.ylabel(y_axis_label)
