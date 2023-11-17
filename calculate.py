@@ -22,13 +22,13 @@ def generate_cross_section(top_flange_width, bottom_flange_width, web_height):
     return [
         (0, th / 2, bottom_flange_width, th),  # bottom flange
         (
-            (bottom_flange_width  - th)/ 2,
+            (bottom_flange_width - th) / 2,
             th + web_height / 2,
             th,
             web_height,
         ),  # right web
         (
-            -bottom_flange_width / 2 + th / 2,
+            (-bottom_flange_width + th) / 2,
             th + web_height / 2,
             th,
             web_height,
@@ -40,23 +40,11 @@ def generate_cross_section(top_flange_width, bottom_flange_width, web_height):
             th,
         ),  # glue top right
         (
-            -web_spacing + glue_width / 2,
+            (-bottom_flange_width + th + glue_width) / 2,
             th / 2 + web_height,
             glue_width - th,
             th,
         ),  # glue top left
-        (
-            web_spacing - glue_width / 2,
-            3 * th / 2,
-            glue_width - th,
-            th,
-        ),  # glue bottom right
-        (
-            -web_spacing + glue_width / 2,
-            3 * th / 2,
-            glue_width - th,
-            th,
-        ),  # glue bottom left
         (0, 3 * th / 2 + web_height, top_flange_width, th),  # top flange
     ]
 
@@ -258,15 +246,15 @@ def generate_envelop(start, stop, num, loads, spacing):
     bending_moment_envelop = []
     max_shear_force = 0
     max_bending_moment = 0
-    x_vals = np.linspace(0, bridge_length, spacing)
+    x_vals = np.linspace(0, bridge_length / 1000, spacing)
 
     for load_position in load_positions:
         # shift positions of loads
-        new_loads = deepcopy(loads)
+        new_loads = [[param for param in load] for load in loads]
         for load in new_loads:
             if load[0] == "point" or load[0] == "distributed":
                 load[1] += load_position
-        print(new_loads)
+
         # calculate bending moment and shear force expressions
         shear_force_expr, critical_lengths = get_shear_force_func(new_loads)
         bending_moment_expr = sy.integrate(shear_force_expr)
@@ -283,14 +271,14 @@ def generate_envelop(start, stop, num, loads, spacing):
         max_bending_moment = max(
             max_expression(critical_lengths, bending_moment_expr)[1], max_bending_moment
         )
-
-        return (
-            x_vals,
-            shear_force_envelop,
-            bending_moment_envelop,
-            max_shear_force,
-            max_bending_moment,
-        )
+    # print(shear_force_envelop[0])
+    return (
+        x_vals,
+        shear_force_envelop,
+        bending_moment_envelop,
+        max_shear_force,
+        max_bending_moment,
+    )
 
 
 ### CODE FOR TRUSS BRIDGES ###

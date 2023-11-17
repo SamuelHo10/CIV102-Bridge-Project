@@ -2,6 +2,8 @@ import calculate
 import graphs
 import sympy as sy
 
+hmm = calculate.generate_cross_section(100, 80, 75-calculate.th)
+print(hmm)
 # [distance from base, width, height]
 rectangles = [
     [75 + 1.27 / 2, 100, 1.27],
@@ -11,7 +13,6 @@ rectangles = [
     [75 / 2, 1.27, 75],
     [1.27 / 2, 80 - 2 * 1.27, 1.27],
 ]
-
 
 # ['point' ,length (m), force (N)]
 # ['distributed' , length (m), uniform load (Nm)]
