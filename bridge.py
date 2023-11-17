@@ -3,10 +3,10 @@ from graphs import *
 
 
 def get_FOS(
-    top_flange_width, bottom_flange_width, webs_height, diaphragm_num, web_spacing, max_shear_force, max_bending_moment
+    top_flange_width, bottom_flange_width, webs_height, diaphragm_num, max_shear_force, max_bending_moment
 ):
     cross_section = generate_cross_section(
-        top_flange_width, bottom_flange_width, webs_height, web_spacing
+        top_flange_width, bottom_flange_width, webs_height
     )
 
     print(cross_section)
@@ -21,22 +21,31 @@ loads = [
     ["point", 1.028, 90],
     ["reaction", 1.200],
 ]
-data = generate_envelop(-0.1, 0.1, 200, loads, 1000)
+data = generate_envelop(-0.172, 0.172, 50, loads, 1000)
 
-print(data[1])
 
 plot_sympy(
-    data[0],
     data[1],
+    data[0],
     (0, 1.2),
     x_axis_label="Length (m)",
     y_axis_label="Shear Force (N)",
-    fill=True,
     save_path="img\\SFD_envelop.png",
-    show=True,
+    show=False,
+    multiple_graphs=True
 )
 
-
+plot_sympy(
+    data[2],
+    data[0],
+    (0, 1.2),
+    x_axis_label="Length (m)",
+    y_axis_label="Bending Moment (Nm)",
+    save_path="img\\BMD_envelop.png",
+    show=False,
+    invert_y = True,
+    multiple_graphs=True
+)
 # get_FOS(100, 100, 50, 1, 80)
 # nodes, top_nodes, bottom_nodes = generate_standard_truss(7, 3, 24)
 
