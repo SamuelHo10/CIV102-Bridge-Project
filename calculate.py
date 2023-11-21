@@ -14,10 +14,15 @@ bridge_length = 1200  # mm
 matboard_density = 625 / 826008 * 1e3 * 9.81  # kN / m^3
 th = 1.27  # mm
 glue_width = 10  # mm
+bottom_flange_width = th + 75
+
+# Comment out if not using design 0
+glue_width = th + 5  # mm
+bottom_flange_width = 80
 ### Add functions to calculate values here ###
 
 
-def generate_cross_section(top_flange_width, bottom_flange_width, web_height):
+def generate_cross_section(top_flange_width, web_height, folds):
     # (x, y, w ,h)
     return [
         (0, th / 2, bottom_flange_width, th),  # bottom flange
@@ -45,7 +50,12 @@ def generate_cross_section(top_flange_width, bottom_flange_width, web_height):
             glue_width - th,
             th,
         ),  # glue top left
-        (0, 3 * th / 2 + web_height, top_flange_width, th),  # top flange
+        (
+            0,
+            th + (th * folds) / 2 + web_height,
+            top_flange_width,
+            th * folds,
+        ),  # top flange
     ]
 
 
@@ -94,6 +104,24 @@ def second_moment_area(components, axis):
     sum1 = 0
     for c in components:
         sum1 += (c[1] * c[2] ** 3) / 12 + c[1] * c[2] * (axis - c[0]) ** 2
+    return sum1
+
+
+def first_moment_area(components, axis, y):
+    cropped_components = []
+    for c in components:
+        if c[0] - c[2] / 2 > y:
+            continue
+        elif c[0] + c[2] / 2 < y:
+            cropped_components.append(c)
+        else:
+            top = y
+            bottom = c[0] - c[2] / 2
+            cropped_components.append([(top + bottom) / 2, c[1], top - bottom])
+
+    sum1 = 0
+    for c in cropped_components:
+        sum1 += (axis - c[0]) * c[1] * c[2]
     return sum1
 
 
@@ -271,13 +299,32 @@ def generate_envelop(start, stop, num, loads, spacing):
         max_bending_moment = max(
             max_expression(critical_lengths, bending_moment_expr)[1], max_bending_moment
         )
-    # print(shear_force_envelop[0])
+
     return (
         x_vals,
         shear_force_envelop,
         bending_moment_envelop,
-        max_shear_force,
-        max_bending_moment,
+        {"shear": str(max_shear_force), "moment": str(max_bending_moment)},
+    )
+
+
+def thin_plate_buckling(k, t, b):
+    return (
+        k
+        * (np.pi**2)
+        * matboard_youngs_modulus
+        / (12 * (1 - matboard_poissons_ratio**2))
+        * (t / b) ** 2
+    )
+
+
+def thin_plate_buckling_shear(t, h, a):
+    return (
+        5
+        * (np.pi**2)
+        * matboard_youngs_modulus
+        / (12 * (1 - matboard_poissons_ratio**2))
+        * ((t / h) ** 2 + (t / a) ** 2)
     )
 
 

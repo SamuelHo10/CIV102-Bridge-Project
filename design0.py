@@ -78,3 +78,4 @@ print(f"Tension Safety Factor: {calculate.matboard_tensile_strength / stresses[0
 print(
     f"Compression Safety Factor: {calculate.matboard_compressive_strength / stresses[1]}"
 )
+print(shear_force_expr)
