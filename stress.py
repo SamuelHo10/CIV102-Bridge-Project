@@ -24,7 +24,7 @@ plot_sympy(
     y_axis_label="Shear Force (N)",
     save_path="img\\SFD_envelop.png",
     show=False,
-    multiple_graphs=True
+    fill = True
 )
 
 plot_sympy(
@@ -36,7 +36,7 @@ plot_sympy(
     save_path="img\\BMD_envelop.png",
     show=False,
     invert_y = True,
-    multiple_graphs=True
+    fill = True
 )
 
 with open('data.json', 'w', encoding='utf-8') as f:

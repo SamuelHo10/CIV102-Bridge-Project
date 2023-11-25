@@ -66,7 +66,7 @@ second_moment_area = calculate.second_moment_area(rectangles, axis)
 bounds = [axis, max([r[0] + r[2] / 2 for r in rectangles]) - axis]
 
 stresses = [b * max_y / second_moment_area * 1e3 for b in bounds]
-
+print(rectangles)
 print("Loads:")
 for load in loads:
     print(load)
