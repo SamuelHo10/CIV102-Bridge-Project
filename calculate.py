@@ -10,15 +10,15 @@ matboard_shear_strength = 4  # MPa
 matboard_youngs_modulus = 4000  # MPa
 matboard_poissons_ratio = 0.2
 cement_shear_strength = 2  # MPa
-bridge_length = 1200  # mm
+bridge_length = 1260  # mm
 matboard_density = 625 / 826008 * 1e3 * 9.81  # kN / m^3
 th = 1.27  # mm
 glue_width = 10  # mm
-bottom_flange_width = th + 75
+bottom_flange_width = th + 65
 
-# Comment out if not using design 0
-glue_width = th + 5  # mm
-bottom_flange_width = 80
+# # Comment out if not using design 0
+# glue_width = th + 5  # mm
+# bottom_flange_width = 80
 ### Add functions to calculate values here ###
 
 
@@ -70,7 +70,7 @@ def area(components):
     """
     sum1 = 0
     for component in components:
-        sum1 += component[2] * component[2]
+        sum1 += component[1] * component[2]
     return sum1
 
 
@@ -268,13 +268,13 @@ def get_shear_force_func(loads):
     return sy.Piecewise(*shear_forces), critical_lengths
 
 
-def generate_envelop(start, stop, num, loads, spacing):
-    load_positions = np.linspace(start, stop, num)
-    shear_force_envelop = []
-    bending_moment_envelop = []
+def generate_envelop(start, stop, num_load_positions, loads, num_length_positions):
+    load_positions = np.linspace(start, stop, num_load_positions)
+    shear_force_envelop = np.zeros(num_length_positions)
+    bending_moment_envelop = np.zeros(num_length_positions)
     max_shear_force = 0
     max_bending_moment = 0
-    x_vals = np.linspace(0, bridge_length / 1000, spacing)
+    x_vals = np.linspace(0, bridge_length / 1000, num_length_positions)
 
     for load_position in load_positions:
         # shift positions of loads
@@ -290,11 +290,18 @@ def generate_envelop(start, stop, num, loads, spacing):
         shear_force_func = sy.lambdify(x, shear_force_expr)
         bending_moment_func = sy.lambdify(x, bending_moment_expr)
 
-        shear_force_envelop.append(shear_force_func(x_vals))
-        bending_moment_envelop.append(bending_moment_func(x_vals))
+        shear_forces = shear_force_func(x_vals)
+        bending_moments = bending_moment_func(x_vals)
+
+        # Compare bending moment and shear forces and find maximum values
+        for i in range(len(x_vals)):
+            if abs(shear_forces[i]) > abs(shear_force_envelop[i]):
+                shear_force_envelop[i] = shear_forces[i]
+            if bending_moments[i] > bending_moment_envelop[i]:
+                bending_moment_envelop[i] = bending_moments[i]
 
         max_shear_force = max(
-            max_expression(critical_lengths, shear_force_expr)[1], max_shear_force
+            max_expression(critical_lengths, abs(shear_force_expr))[1], max_shear_force
         )
         max_bending_moment = max(
             max_expression(critical_lengths, bending_moment_expr)[1], max_bending_moment
@@ -328,7 +335,7 @@ def thin_plate_buckling_shear(t, h, a):
     )
 
 
-### CODE FOR TRUSS BRIDGES ###
+### CODE FOR TRUSS BRIDGES (NOT IN USE) ###
 
 
 class Node:
