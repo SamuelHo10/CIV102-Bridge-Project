@@ -1,6 +1,5 @@
 import numpy as np
 import sympy as sy
-from copy import deepcopy
 
 x = sy.Symbol("x", real=True)
 
@@ -10,7 +9,7 @@ matboard_shear_strength = 4  # MPa
 matboard_youngs_modulus = 4000  # MPa
 matboard_poissons_ratio = 0.2
 cement_shear_strength = 2  # MPa
-bridge_length = 1260  # mm
+bridge_length = 1200  # mm
 matboard_density = 625 / 826008 * 1e3 * 9.81  # kN / m^3
 th = 1.27  # mm
 glue_width = 10  # mm
@@ -22,7 +21,7 @@ bottom_flange_width = th + 65
 ### Add functions to calculate values here ###
 
 
-def generate_cross_section(top_flange_width, web_height, folds):
+def generate_cross_section(top_flange_width, web_height, top_flange_layers):
     # (x, y, w ,h)
     return [
         (0, th / 2, bottom_flange_width, th),  # bottom flange
@@ -52,9 +51,9 @@ def generate_cross_section(top_flange_width, web_height, folds):
         ),  # glue top left
         (
             0,
-            th + (th * folds) / 2 + web_height,
+            th + (th * top_flange_layers) / 2 + web_height,
             top_flange_width,
-            th * folds,
+            th * top_flange_layers,
         ),  # top flange
     ]
 
@@ -311,7 +310,7 @@ def generate_envelop(start, stop, num_load_positions, loads, num_length_position
         x_vals,
         shear_force_envelop,
         bending_moment_envelop,
-        {"shear": str(max_shear_force), "moment": str(max_bending_moment)},
+        {"x": list(map(str,x_vals)), "shear_force_envelope": list(map(str,shear_force_envelop)), "bending_moment_envelope":list(map(str,bending_moment_envelop)), "shear": str(max_shear_force), "moment": str(max_bending_moment)},
     )
 
 
@@ -333,102 +332,3 @@ def thin_plate_buckling_shear(t, h, a):
         / (12 * (1 - matboard_poissons_ratio**2))
         * ((t / h) ** 2 + (t / a) ** 2)
     )
-
-
-### CODE FOR TRUSS BRIDGES (NOT IN USE) ###
-
-
-class Node:
-    def __init__(self, x, y):
-        self.x = x
-        self.y = y
-        self.members = []
-        self.force = (0, 0)
-
-    def __repr__(self):
-        return f"[{self.x},{self.y}]"
-
-
-class Member:
-    def __init__(self, n1, n2, id):
-        self.nodes = (n1, n2)
-        self.id = id
-
-    def __repr__(self):
-        return str(self.force)
-
-
-def connect_nodes(a, b, id):
-    member = Member(a, b, id)
-    a.members.append((member, b))
-    b.members.append((member, a))
-    return member
-
-
-def generate_standard_truss(num_horizontal_nodes, height, length):
-    top_nodes = []
-    bottom_nodes = []
-    nodes = []
-
-    for n in range(num_horizontal_nodes):
-        node = Node(length / (num_horizontal_nodes - 1) * n, 0)
-        bottom_nodes.append(node)
-        nodes.append(node)
-
-    for n in range(1, num_horizontal_nodes - 1):
-        node = Node(length / (num_horizontal_nodes - 1) * n, height)
-        top_nodes.append(node)
-        nodes.append(node)
-
-    return nodes, top_nodes, bottom_nodes
-
-
-def connect_nodes_pratt(top_nodes, bottom_nodes):
-    id = 0
-    length_top = len(top_nodes)
-    length_bottom = len(bottom_nodes)
-    node_pairs = []
-    members = []
-
-    node_pairs.extend([(top_nodes[i], top_nodes[i + 1]) for i in range(length_top - 1)])
-
-    node_pairs.extend(
-        [(bottom_nodes[i], bottom_nodes[i + 1]) for i in range(length_bottom - 1)]
-    )
-
-    node_pairs.extend([(top_nodes[i], bottom_nodes[i + 1]) for i in range(length_top)])
-
-    for i in range((length_top + 1) // 2):
-        node_pairs.append((bottom_nodes[i], top_nodes[i]))
-        node_pairs.append(
-            (bottom_nodes[length_bottom - 1 - i], top_nodes[length_top - 1 - i])
-        )
-
-    for node_pair in node_pairs:
-        members.append(connect_nodes(node_pair[0], node_pair[1], id))
-        id += 1
-
-    return members
-
-
-def solve_truss(nodes, members):
-    num_members = len(members)
-    A = []
-    B = []
-    for i in range(len(nodes)):
-        row_x = [0] * num_members
-        row_y = [0] * num_members
-        node = nodes[i]
-        for f in node.members:
-            member = f[0]
-            other_node = f[1]
-            angle = np.arctan2(other_node.y - node.y, other_node.x - node.x)
-            row_x[member.id] = np.cos(angle)
-            row_y[member.id] = np.sin(angle)
-        A.extend([row_x, row_y])
-        B.extend([-node.force[0], -node.force[1]])
-
-    member_forces = np.linalg.lstsq(A, B)[0]
-
-    for i in range(num_members):
-        members[i].force = member_forces[i]
