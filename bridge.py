@@ -189,7 +189,7 @@ factors_1 = get_FOS(
 
 
 
-print("Load Case 2:")
+print("\nLoad Case 2:")
 factors_2 = get_FOS(
     owidth,
     oheight - calc.th - othickness * calc.th,
@@ -197,6 +197,29 @@ factors_2 = get_FOS(
     odiaphragm,
     print_FOS=True,
     return_min=False,
+)
+
+calc.design0()
+print("\nDesign 0 Case 1:")
+get_FOS(
+    100,
+    75-calc.th,
+    1,
+    2,
+    print_FOS=True,
+    glue_width=calc.glue_width,
+    max_shear_force=float(data2["shear"]),
+    max_bending_moment=float(data2["moment"]),
+)
+
+print("\nDesign 0 Load Case 2:")
+get_FOS(
+    100,
+    75-calc.th,
+    1,
+    2,
+    glue_width=calc.glue_width,
+    print_FOS=True,
 )
 
 ### Generate Graphs ###
