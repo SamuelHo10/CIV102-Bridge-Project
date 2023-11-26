@@ -1,6 +1,5 @@
 import numpy as np
 import sympy as sy
-from copy import deepcopy
 
 x = sy.Symbol("x", real=True)
 
@@ -14,21 +13,27 @@ bridge_length = 1200  # mm
 matboard_density = 625 / 826008 * 1e3 * 9.81  # kN / m^3
 th = 1.27  # mm
 glue_width = 10  # mm
-### Add functions to calculate values here ###
+bottom_flange_width = th + 65
+
+# Call this function if using design 0
+def design0():
+    global glue_width, bottom_flange_width
+    glue_width = th + 5  # mm
+    bottom_flange_width = 80
 
 
-def generate_cross_section(top_flange_width, bottom_flange_width, web_height):
+def generate_cross_section(top_flange_width, web_height, top_flange_layers):
     # (x, y, w ,h)
     return [
         (0, th / 2, bottom_flange_width, th),  # bottom flange
         (
-            (bottom_flange_width  - th)/ 2,
+            (bottom_flange_width - th) / 2,
             th + web_height / 2,
             th,
             web_height,
         ),  # right web
         (
-            -bottom_flange_width / 2 + th / 2,
+            (-bottom_flange_width + th) / 2,
             th + web_height / 2,
             th,
             web_height,
@@ -40,24 +45,17 @@ def generate_cross_section(top_flange_width, bottom_flange_width, web_height):
             th,
         ),  # glue top right
         (
-            -web_spacing + glue_width / 2,
+            (-bottom_flange_width + th + glue_width) / 2,
             th / 2 + web_height,
             glue_width - th,
             th,
         ),  # glue top left
         (
-            web_spacing - glue_width / 2,
-            3 * th / 2,
-            glue_width - th,
-            th,
-        ),  # glue bottom right
-        (
-            -web_spacing + glue_width / 2,
-            3 * th / 2,
-            glue_width - th,
-            th,
-        ),  # glue bottom left
-        (0, 3 * th / 2 + web_height, top_flange_width, th),  # top flange
+            0,
+            th + (th * top_flange_layers) / 2 + web_height,
+            top_flange_width,
+            th * top_flange_layers,
+        ),  # top flange
     ]
 
 
@@ -72,7 +70,7 @@ def area(components):
     """
     sum1 = 0
     for component in components:
-        sum1 += component[2] * component[2]
+        sum1 += component[1] * component[2]
     return sum1
 
 
@@ -106,6 +104,34 @@ def second_moment_area(components, axis):
     sum1 = 0
     for c in components:
         sum1 += (c[1] * c[2] ** 3) / 12 + c[1] * c[2] * (axis - c[0]) ** 2
+    return sum1
+
+
+def first_moment_area(components, axis, y):
+    """Calculates the first moment of area of all the components.
+
+    Args:
+        components (list): Contains rectangles with postion, width, and height.
+        axis (float): Location of the centroidal axis relative to the lowest point.
+        y (float): Section of the cross section.
+        
+    Returns:
+        float: The first moment of area.
+    """
+    cropped_components = []
+    for c in components:
+        if c[0] - c[2] / 2 > y:
+            continue
+        elif c[0] + c[2] / 2 < y:
+            cropped_components.append(c)
+        else:
+            top = y
+            bottom = c[0] - c[2] / 2
+            cropped_components.append([(top + bottom) / 2, c[1], top - bottom])
+
+    sum1 = 0
+    for c in cropped_components:
+        sum1 += (axis - c[0]) * c[1] * c[2]
     return sum1
 
 
@@ -252,21 +278,21 @@ def get_shear_force_func(loads):
     return sy.Piecewise(*shear_forces), critical_lengths
 
 
-def generate_envelop(start, stop, num, loads, spacing):
-    load_positions = np.linspace(start, stop, num)
-    shear_force_envelop = []
-    bending_moment_envelop = []
+def generate_envelop(start, stop, num_load_positions, loads, num_length_positions):
+    load_positions = np.linspace(start, stop, num_load_positions)
+    shear_force_envelop = np.zeros(num_length_positions)
+    bending_moment_envelop = np.zeros(num_length_positions)
     max_shear_force = 0
     max_bending_moment = 0
-    x_vals = np.linspace(0, bridge_length, spacing)
+    x_vals = np.linspace(0, bridge_length / 1000, num_length_positions)
 
     for load_position in load_positions:
         # shift positions of loads
-        new_loads = deepcopy(loads)
+        new_loads = [[param for param in load] for load in loads]
         for load in new_loads:
             if load[0] == "point" or load[0] == "distributed":
                 load[1] += load_position
-        print(new_loads)
+
         # calculate bending moment and shear force expressions
         shear_force_expr, critical_lengths = get_shear_force_func(new_loads)
         bending_moment_expr = sy.integrate(shear_force_expr)
@@ -274,119 +300,46 @@ def generate_envelop(start, stop, num, loads, spacing):
         shear_force_func = sy.lambdify(x, shear_force_expr)
         bending_moment_func = sy.lambdify(x, bending_moment_expr)
 
-        shear_force_envelop.append(shear_force_func(x_vals))
-        bending_moment_envelop.append(bending_moment_func(x_vals))
+        shear_forces = shear_force_func(x_vals)
+        bending_moments = bending_moment_func(x_vals)
+
+        # Compare bending moment and shear forces and find maximum values
+        for i in range(len(x_vals)):
+            if abs(shear_forces[i]) > abs(shear_force_envelop[i]):
+                shear_force_envelop[i] = shear_forces[i]
+            if bending_moments[i] > bending_moment_envelop[i]:
+                bending_moment_envelop[i] = bending_moments[i]
 
         max_shear_force = max(
-            max_expression(critical_lengths, shear_force_expr)[1], max_shear_force
+            max_expression(critical_lengths, abs(shear_force_expr))[1], max_shear_force
         )
         max_bending_moment = max(
             max_expression(critical_lengths, bending_moment_expr)[1], max_bending_moment
         )
 
-        return (
-            x_vals,
-            shear_force_envelop,
-            bending_moment_envelop,
-            max_shear_force,
-            max_bending_moment,
-        )
-
-
-### CODE FOR TRUSS BRIDGES ###
-
-
-class Node:
-    def __init__(self, x, y):
-        self.x = x
-        self.y = y
-        self.members = []
-        self.force = (0, 0)
-
-    def __repr__(self):
-        return f"[{self.x},{self.y}]"
-
-
-class Member:
-    def __init__(self, n1, n2, id):
-        self.nodes = (n1, n2)
-        self.id = id
-
-    def __repr__(self):
-        return str(self.force)
-
-
-def connect_nodes(a, b, id):
-    member = Member(a, b, id)
-    a.members.append((member, b))
-    b.members.append((member, a))
-    return member
-
-
-def generate_standard_truss(num_horizontal_nodes, height, length):
-    top_nodes = []
-    bottom_nodes = []
-    nodes = []
-
-    for n in range(num_horizontal_nodes):
-        node = Node(length / (num_horizontal_nodes - 1) * n, 0)
-        bottom_nodes.append(node)
-        nodes.append(node)
-
-    for n in range(1, num_horizontal_nodes - 1):
-        node = Node(length / (num_horizontal_nodes - 1) * n, height)
-        top_nodes.append(node)
-        nodes.append(node)
-
-    return nodes, top_nodes, bottom_nodes
-
-
-def connect_nodes_pratt(top_nodes, bottom_nodes):
-    id = 0
-    length_top = len(top_nodes)
-    length_bottom = len(bottom_nodes)
-    node_pairs = []
-    members = []
-
-    node_pairs.extend([(top_nodes[i], top_nodes[i + 1]) for i in range(length_top - 1)])
-
-    node_pairs.extend(
-        [(bottom_nodes[i], bottom_nodes[i + 1]) for i in range(length_bottom - 1)]
+    return (
+        x_vals,
+        shear_force_envelop,
+        bending_moment_envelop,
+        {"x": list(map(str,x_vals)), "shear_force_envelope": list(map(str,shear_force_envelop)), "bending_moment_envelope":list(map(str,bending_moment_envelop)), "shear": str(max_shear_force), "moment": str(max_bending_moment)},
     )
 
-    node_pairs.extend([(top_nodes[i], bottom_nodes[i + 1]) for i in range(length_top)])
 
-    for i in range((length_top + 1) // 2):
-        node_pairs.append((bottom_nodes[i], top_nodes[i]))
-        node_pairs.append(
-            (bottom_nodes[length_bottom - 1 - i], top_nodes[length_top - 1 - i])
-        )
-
-    for node_pair in node_pairs:
-        members.append(connect_nodes(node_pair[0], node_pair[1], id))
-        id += 1
-
-    return members
+def thin_plate_buckling(k, t, b):
+    return (
+        k
+        * (np.pi**2)
+        * matboard_youngs_modulus
+        / (12 * (1 - matboard_poissons_ratio**2))
+        * (t / b) ** 2
+    )
 
 
-def solve_truss(nodes, members):
-    num_members = len(members)
-    A = []
-    B = []
-    for i in range(len(nodes)):
-        row_x = [0] * num_members
-        row_y = [0] * num_members
-        node = nodes[i]
-        for f in node.members:
-            member = f[0]
-            other_node = f[1]
-            angle = np.arctan2(other_node.y - node.y, other_node.x - node.x)
-            row_x[member.id] = np.cos(angle)
-            row_y[member.id] = np.sin(angle)
-        A.extend([row_x, row_y])
-        B.extend([-node.force[0], -node.force[1]])
-
-    member_forces = np.linalg.lstsq(A, B)[0]
-
-    for i in range(num_members):
-        members[i].force = member_forces[i]
+def thin_plate_buckling_shear(t, h, a):
+    return (
+        5
+        * (np.pi**2)
+        * matboard_youngs_modulus
+        / (12 * (1 - matboard_poissons_ratio**2))
+        * ((t / h) ** 2 + (t / a) ** 2)
+    )
