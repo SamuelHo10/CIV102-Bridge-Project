@@ -15,10 +15,11 @@ th = 1.27  # mm
 glue_width = 10  # mm
 bottom_flange_width = th + 65
 
-# # Comment out if not using design 0
-# glue_width = th + 5  # mm
-# bottom_flange_width = 80
-### Add functions to calculate values here ###
+# Call this function if using design 0
+def design0():
+    global glue_width, bottom_flange_width
+    glue_width = th + 5  # mm
+    bottom_flange_width = 80
 
 
 def generate_cross_section(top_flange_width, web_height, top_flange_layers):
@@ -107,6 +108,16 @@ def second_moment_area(components, axis):
 
 
 def first_moment_area(components, axis, y):
+    """Calculates the first moment of area of all the components.
+
+    Args:
+        components (list): Contains rectangles with postion, width, and height.
+        axis (float): Location of the centroidal axis relative to the lowest point.
+        y (float): Section of the cross section.
+        
+    Returns:
+        float: The first moment of area.
+    """
     cropped_components = []
     for c in components:
         if c[0] - c[2] / 2 > y:
