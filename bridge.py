@@ -108,6 +108,18 @@ def get_FOS(
         print(f"Number of Diaphragms: {diaphragm_num}")
         print(f"Top Flange Layers: {top_flange_layers}")
         print(f"Glue Width: {glue_width}")
+        
+        print("\nIntermediate Values:")
+        print(f"Centroidal Axis: {axis}")
+        print(f"Second Moment of Area: {second_moment_area}")
+        print(f"Max Compression Stress: {max_compression}")
+        print(f"Max Tension Stress: {max_tension}")
+        print(f"Max Shear Stress: {max_shear}")
+        print(f"Shear at Glue: {glue_shear}")
+        print(f"Buckling Flange Between Webs Stress: {buckling_flange_between_webs}")
+        print(f"Buckling Flange Tips Stress: {buckling_flange_tips}")
+        print(f"Buckling Webs Stress: {buckling_webs}")
+        print(f"Buckling Shear Webs Stress: {buckling_shear}")
 
         print("\nFOS:")
         print(f"Tension Safety Factor: {FOS_wall_tension}")
