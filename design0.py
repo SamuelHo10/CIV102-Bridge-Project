@@ -32,7 +32,7 @@ loads = [
 
 shear_force_expr, critical_lengths = calculate.get_shear_force_func(loads)
 
-graphs.plot_sympy(
+graphs.plot_expr(
     shear_force_expr,
     calculate.x,
     (0, 1.2),
@@ -45,7 +45,7 @@ graphs.plot_sympy(
 
 bending_moment_expr = sy.integrate(shear_force_expr)
 
-graphs.plot_sympy(
+graphs.plot_expr(
     bending_moment_expr,
     calculate.x,
     (0, 1.2),

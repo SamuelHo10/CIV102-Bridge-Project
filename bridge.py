@@ -1,24 +1,28 @@
 import calculate as calc
 from graphs import *
 import json
-from scipy.optimize import minimize
-
 
 f = open("data.json")
 data = json.load(f)
+f2 = open("data2.json")
+data2 = json.load(f2)
+
+max_shear_force = float(data["shear"])
+max_bending_moment = float(data["moment"])
 
 
 def get_FOS(
     top_flange_width,
     web_height,
-    folds = 1,
-    diaphragm_num = 1,
-    max_shear_force = float(data['shear']),
-    max_bending_moment = float(data['moment']),
-    glue_width = calc.glue_width,
+    top_flange_layers=1,
+    diaphragm_num=1,
+    max_shear_force=max_shear_force,
+    max_bending_moment=max_bending_moment,
+    glue_width=calc.glue_width,
     print_FOS=False,
+    return_min=True,
 ):
-    cross_section = calc.generate_cross_section(top_flange_width, web_height, folds)
+    cross_section = calc.generate_cross_section(top_flange_width, web_height, top_flange_layers)
 
     components = [
         [rectangle[1], rectangle[2], rectangle[3]] for rectangle in cross_section
@@ -30,7 +34,6 @@ def get_FOS(
 
     bottom = axis
     top = max([r[0] + r[2] / 2 for r in components]) - axis
-    # Tension, Compression
 
     flexural_stress_at = lambda y: y * max_bending_moment / second_moment_area * 1e3
 
@@ -53,19 +56,19 @@ def get_FOS(
     FOS_glue_shear = calc.cement_shear_strength / glue_shear
 
     buckling_flange_between_webs = calc.thin_plate_buckling(
-        4, calc.th * folds, calc.bottom_flange_width - calc.th
+        4, calc.th * top_flange_layers, calc.bottom_flange_width - calc.th
     )
+    
     buckling_flange_tips = calc.thin_plate_buckling(
         0.425,
-        calc.th * folds,
+        calc.th * top_flange_layers,
         (top_flange_width - calc.bottom_flange_width + calc.th) / 2,
     )
-    # print( 0.425,
-    #     calc.th * folds,
-    #     (top_flange_width - calc.bottom_flange_width + calc.th) / 2)
+
     buckling_webs = calc.thin_plate_buckling(6, calc.th, calc.th + web_height - axis)
+    
     buckling_shear = calc.thin_plate_buckling_shear(
-        calc.th, web_height - calc.th, calc.bridge_length / (diaphragm_num + 1)
+        calc.th * 2, web_height - calc.th, calc.bridge_length / (diaphragm_num + 1)
     )
 
     FOS_buckling_flange_between_webs = buckling_flange_between_webs / max_compression
@@ -73,11 +76,17 @@ def get_FOS(
     FOS_buckling_webs = buckling_webs / max_compression
     FOS_buckling_shear = buckling_shear / max_shear
 
-    # Approximate volume of bridge
+    # Approximate volume of bridge (Not exact)
     area = calc.area(components)
-    diaphragm_thickness = calc.th * (diaphragm_num + 2)
-    cross_section_thickness = calc.bridge_length - diaphragm_thickness
-    diaphragm_area = (2 * calc.th + web_height) * calc.bottom_flange_width
+    diaphragm_thickness = calc.th * (
+        diaphragm_num + 3
+    )  # Must add 3 to include double diaphragms in the middle and on both ends of the bridge
+    cross_section_thickness = (
+        calc.bridge_length + 60
+    )  # Add 60 for both ends of the bridge
+    diaphragm_area = (2 * calc.glue_width + web_height) * (
+        calc.bottom_flange_width - 2 * calc.th + calc.glue_width * 2
+    )
     volume = area * cross_section_thickness + diaphragm_area * diaphragm_thickness
 
     final_FOS = min(
@@ -92,15 +101,15 @@ def get_FOS(
     )
 
     if print_FOS:
-        
-        # print(f"Glue Width: {glue_width}")
+        print("Dimensions: ")
         print(f"Bottom Flange Width: {calc.bottom_flange_width}")
         print(f"Top Flange Width: {top_flange_width}")
         print(f"Web Height: {web_height}")
         print(f"Number of Diaphragms: {diaphragm_num}")
-        print(f"Top Flange Layers: {folds}")
+        print(f"Top Flange Layers: {top_flange_layers}")
         print(f"Glue Width: {glue_width}")
-        
+
+        print("\nFOS:")
         print(f"Tension Safety Factor: {FOS_wall_tension}")
         print(f"Compression Safety Factor: {FOS_wall_compression}")
         print(f"Shear Safety Factor: {FOS_wall_shear}")
@@ -111,46 +120,132 @@ def get_FOS(
         print(f"Buckling Flange Tips Safety Factor: {FOS_buckling_flange_tips}")
         print(f"Buckling Webs Safety Factor: {FOS_buckling_webs}")
         print(f"Buckling Shear Safety Factor: {FOS_buckling_shear}")
-        print(f"Volume: {volume}")
+
+        print(f"\nVolume: {volume}")
         print(f"Percent of Matboard: {volume/1049030.16*100}")
-        
-        print(f"Maximum Force: {final_FOS * 446.66}")
-    if volume/1049030.16 < 0.9:
-        
-        return final_FOS
-    return -1
+
+        print(f"\nMaximum Load: {final_FOS * 446.66}")
+
+    if return_min:
+        # Volume must be less than 90% of total matboard
+        if volume / 1049030.16 < 0.9:
+            return final_FOS
+        return -1
+
+    return (
+        FOS_wall_tension,
+        FOS_wall_compression,
+        FOS_wall_shear,
+        FOS_glue_shear,
+        FOS_buckling_flange_between_webs,
+        FOS_buckling_flange_tips,
+        FOS_buckling_webs,
+        FOS_buckling_shear,
+    )
 
 
+### Code For Optimization ###
 
-# get_FOS(100, 75 - calc.th, 1, 2, 236.555555555556, 75.7564444444445, print_FOS=True, glue_width=5)
 fos = 0
 oheight = None
 othickness = None
 owidth = None
 odiaphragm = None
 
-for height in range(20, 121, 20):
-    for thickness in range(1, 6):
-        for width in range(100, 150):
-            for diaphragm in range(1,4):
-                new_fos =  get_FOS(width, height - calc.th-thickness*calc.th, thickness, diaphragm, print_FOS=False)
+# Loop through range of values to try to find the optimal dimensions
+# for height in range(20, 121, 20):
+#     for thickness in range(1, 6):
+#         for width in range(100, 150):
+#             for diaphragm in range(1,4):
+#                 new_fos =  get_FOS(width, height - calc.th-thickness*calc.th, thickness, diaphragm, print_FOS=False)
 
-                if new_fos > fos:
-                    oheight = height
-                    fos = new_fos
-                    othickness = thickness
-                    odiaphragm = diaphragm
-                    owidth = width
+#                 if new_fos > fos:
+#                     oheight = height
+#                     fos = new_fos
+#                     othickness = thickness
+#                     odiaphragm = diaphragm
+#                     owidth = width
 
-get_FOS(125, oheight - calc.th-othickness*calc.th, othickness, odiaphragm, print_FOS=True)
-# def objective(x):
-#     top_flange_width, web_height = x
-#     return get_FOS(top_flange_width, web_height, 3, 1)
-# x0 = [100, 75 - calc.th]
-# bnds = ((20,300),(10,200))
-# print(minimize(objective, x0, method="Powell", bounds=bnds))
+# Changed width to 125, so we can fit it on matboard
 
-# get_FOS(114.3, 85.20, 3, 1, print_FOS=True)
-# # get_FOS(100, 100, 50, 1, 80)
-# nodes, top_nodes, bottom_nodes = generate_standard_truss(7, 3, 24)
+### Final Bridge Dimensions ###
 
+owidth = 125
+othickness = 2
+odiaphragm = 3
+oheight = 100
+
+print("Load Case 1:")
+factors_1 = get_FOS(
+    owidth,
+    oheight - calc.th - othickness * calc.th,
+    othickness,
+    odiaphragm,
+    print_FOS=True,
+    return_min=False,
+    max_shear_force=float(data2["shear"]),
+    max_bending_moment=float(data2["moment"]),
+)
+
+
+
+print("Load Case 2:")
+factors_2 = get_FOS(
+    owidth,
+    oheight - calc.th - othickness * calc.th,
+    othickness,
+    odiaphragm,
+    print_FOS=True,
+    return_min=False,
+)
+
+### Generate Graphs ###
+def generate_graphs(data, factors, folder_name):
+    max_shear_force = float(data["shear"])
+    max_bending_moment = float(data["moment"])
+    x_vals = [float(d) for d in data["x"]]
+    shear_force_envelope = [float(d) for d in data["shear_force_envelope"]]
+    bending_moment_envelop = [float(d) for d in data["bending_moment_envelope"]]
+
+    names = (
+        "tension_failiure",
+        "compression_failiure",
+        "shear_failiure",
+        "glue_shear_failiure",
+        "buckling_flange_between_webs_failiure",
+        "buckling_flange_tips_failiure",
+        "buckling_webs_failiure",
+        "buckling_shear_webs_failiure",
+    )
+    is_shear = (False, False, True, True, False, False, False, True)
+
+    for i in range(len(factors)):
+        formatted_name = names[i].replace("_", " ").title()
+        if is_shear[i]:
+            values = [factors[i] * max_shear_force] * len(x_vals)
+            plot_expr(
+                [shear_force_envelope, values, np.array(values) * -1],
+                x_vals,
+                x_axis_label="Length (m)",
+                y_axis_label="Shear Force (N)",
+                save_path="img\\" + folder_name +"\\" + names[i] + ".png",
+                show=False,
+                multiple_graphs=True,
+                labels=("Applied Shear Force", formatted_name, ""),
+            )
+        else:
+            values = [factors[i] * max_bending_moment] * len(x_vals)
+            plot_expr(
+                [bending_moment_envelop, values],
+                x_vals,
+                x_axis_label="Length (m)",
+                y_axis_label="Bending Moment (Nm)",
+                save_path="img\\" + folder_name +"\\" + names[i] + ".png",
+                show=False,
+                invert_y=True,
+                multiple_graphs=True,
+                labels=("Applied Bending Moment", formatted_name),
+            )
+
+generate_graphs(data2, factors_1, "load_case_1")
+generate_graphs(data, factors_2, "load_case_2")
