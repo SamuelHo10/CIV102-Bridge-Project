@@ -2,6 +2,8 @@ import calculate
 import graphs
 import sympy as sy
 
+hmm = calculate.generate_cross_section(100, 80, 75-calculate.th)
+print(hmm)
 # [distance from base, width, height]
 rectangles = [
     [75 + 1.27 / 2, 100, 1.27],
@@ -11,7 +13,6 @@ rectangles = [
     [75 / 2, 1.27, 75],
     [1.27 / 2, 80 - 2 * 1.27, 1.27],
 ]
-
 
 # ['point' ,length (m), force (N)]
 # ['distributed' , length (m), uniform load (Nm)]
@@ -31,7 +32,7 @@ loads = [
 
 shear_force_expr, critical_lengths = calculate.get_shear_force_func(loads)
 
-graphs.plot_sympy(
+graphs.plot_expr(
     shear_force_expr,
     calculate.x,
     (0, 1.2),
@@ -44,7 +45,7 @@ graphs.plot_sympy(
 
 bending_moment_expr = sy.integrate(shear_force_expr)
 
-graphs.plot_sympy(
+graphs.plot_expr(
     bending_moment_expr,
     calculate.x,
     (0, 1.2),
@@ -65,7 +66,7 @@ second_moment_area = calculate.second_moment_area(rectangles, axis)
 bounds = [axis, max([r[0] + r[2] / 2 for r in rectangles]) - axis]
 
 stresses = [b * max_y / second_moment_area * 1e3 for b in bounds]
-
+print(rectangles)
 print("Loads:")
 for load in loads:
     print(load)
@@ -77,3 +78,4 @@ print(f"Tension Safety Factor: {calculate.matboard_tensile_strength / stresses[0
 print(
     f"Compression Safety Factor: {calculate.matboard_compressive_strength / stresses[1]}"
 )
+print(shear_force_expr)
