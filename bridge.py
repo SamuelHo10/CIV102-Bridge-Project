@@ -68,7 +68,7 @@ def get_FOS(
     buckling_webs = calc.thin_plate_buckling(6, calc.th, calc.th + web_height - axis)
     
     buckling_shear = calc.thin_plate_buckling_shear(
-        calc.th * 2, web_height - calc.th, calc.bridge_length / (diaphragm_num + 1)
+        calc.th, web_height - calc.th, calc.bridge_length / (diaphragm_num + 1)
     )
 
     FOS_buckling_flange_between_webs = buckling_flange_between_webs / max_compression
